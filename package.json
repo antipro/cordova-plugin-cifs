@@ -1,0 +1,14 @@
+{
+  "name": "cordova-plugin-cifs",
+  "version": "1.0.0",
+  "description": "Cordova CIFS Plugin",
+  "cordova": {
+    "id": "cordova-plugin-cifs",
+    "platforms": []
+  },
+  "keywords": [
+    "ecosystem:cordova"
+  ],
+  "author": "antipro",
+  "license": "Apache-2.0"
+}
