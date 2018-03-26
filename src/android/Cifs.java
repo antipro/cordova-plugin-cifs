@@ -44,92 +44,95 @@ public class Cifs extends CordovaPlugin {
   /**
    * exist (true or false) 
    */
-  private void exist(String url, CallbackContext callbackContext) {
-    try {
-      SmbFile smbFile = new SmbFile(url);
-      callbackContext.success(smbFile.exists());
-    } catch (Exception e) {
-      callbackContext.error("Exception: " + e.getMessage());
-    }
+  private void exist(final String url, final CallbackContext callbackContext) {
+    cordova.getThreadPool().execute(new Runnable() {
+      public void run() {
+        try {
+          SmbFile smbFile = new SmbFile(url);
+          callbackContext.success(Boolean.toString(smbFile.exists()));
+        } catch (Exception e) {
+          callbackContext.error("Exception: " + e.getMessage());
+        }
+      }
+    });
   }
 
   /**
    * file lists (JSONArray)
    */
-  private void dir(String url, CallbackContext callbackContext) {
-    try {
-      SmbFile smbFile = new SmbFile(url);
-      if (smbFile.isFile()) {
-        callbackContext.error("Only Directory can be processed.");
-        return;
+  private void dir(final String url, final CallbackContext callbackContext) {
+    cordova.getThreadPool().execute(new Runnable() {
+      public void run() {
+        try {
+          SmbFile smbFile = new SmbFile(url);
+          if (smbFile.isFile()) {
+            callbackContext.error("Only Directory can be processed.");
+            return;
+          }
+          JSONArray jsonfiles = new JSONArray();
+          SmbFile[] files = smbFile.listFiles();
+          for (SmbFile file : files) {
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("name", file.getName());
+            jsonObject.put("length", file.length());
+            jsonObject.put("url", file.getCanonicalPath());
+            jsonObject.put("directory", file.isDirectory());
+            jsonfiles.put(jsonObject);
+          }
+          callbackContext.success(jsonfiles);
+        } catch (Exception e) {
+          callbackContext.error("Exception: " + e.getMessage());
+        }
       }
-      JSONArray jsonfiles = new JSONArray();
-      SmbFile[] files = smbFile.listFiles();
-      for (SmbFile file : files) {
-        JSONObject jsonObject = new JSONObject();
-        jsonObject.put("name", file.getName());
-        jsonObject.put("length", file.length());
-        jsonObject.put("url", file.getCanonicalPath());
-        jsonObject.put("directory", file.isDirectory());
-        jsonfiles.put(jsonObject);
-      }
-      callbackContext.success(jsonfiles);
-    } catch (Exception e) {
-      callbackContext.error("Exception: " + e.getMessage());
-    }
+    });
   }
 
   /**
    * download file (filename/percent/status)
    */
-  private void download(String url, final CallbackContext callbackContext) {
-    try {
-			final SmbFile smbFile = new SmbFile(url);
-			if(!smbFile.exists()) {
-        callbackContext.error("File not existed.");
-				return;
-			}
-			if(smbFile.isDirectory()) {
-        callbackContext.error("Directory can not be downloaded.");
-				return;
-      }
-      
-      cordova.getThreadPool().execute(new Runnable() {
-        public void run() {
-          try {
-            long fileSize = smbFile.length();
-            // System.out.println("File size:" + fileSize);
-            BufferedInputStream inputStream = new BufferedInputStream(smbFile.getInputStream());
-            File tempFile = File.createTempFile("cifs", "");
-            JSONObject jsonObject = new JSONObject();
-            jsonObject.put("status", "downloading");
-            jsonObject.put("filename", tempFile.getName());
-            FileOutputStream outputStream = new FileOutputStream(tempFile);
-            byte[] bytes = new byte[MAX_LENGTH];
-            long loadedSize = 0;
-            int count = -1;
-            while((count = inputStream.read(bytes, 0, MAX_LENGTH)) > -1) {
-              outputStream.write(bytes, 0, count);
-              loadedSize += count;
-              String percent = String.format("%.1f%%", loadedSize * 100.0 / fileSize);
-              jsonObject.put("percent", percent);
-              PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, jsonObject);
-              pluginResult.setKeepCallback(true);
-              callbackContext.sendPluginResult(pluginResult);
-              // System.out.printf("Download Rate: %.1f%%\n", loadedSize * 100.0 / fileSize);
-            }
-            inputStream.close();
-            outputStream.close();
-      
-            jsonObject.put("status", "finished");
-            callbackContext.success(jsonObject);
-          } catch (Exception e) {
-            callbackContext.error("Exception: " + e.getMessage());
+  private void download(final String url, final CallbackContext callbackContext) {
+    cordova.getThreadPool().execute(new Runnable() {
+      public void run() {
+        try {
+          final SmbFile smbFile = new SmbFile(url);
+          if(!smbFile.exists()) {
+            callbackContext.error("File not existed.");
+            return;
           }
+          if(smbFile.isDirectory()) {
+            callbackContext.error("Directory can not be downloaded.");
+            return;
+          }
+          long fileSize = smbFile.length();
+          // System.out.println("File size:" + fileSize);
+          BufferedInputStream inputStream = new BufferedInputStream(smbFile.getInputStream());
+          File tempFile = File.createTempFile("cifs", "");
+          JSONObject jsonObject = new JSONObject();
+          jsonObject.put("status", "downloading");
+          jsonObject.put("filename", tempFile.getName());
+          FileOutputStream outputStream = new FileOutputStream(tempFile);
+          byte[] bytes = new byte[MAX_LENGTH];
+          long loadedSize = 0;
+          int count = -1;
+          while((count = inputStream.read(bytes, 0, MAX_LENGTH)) > -1) {
+            outputStream.write(bytes, 0, count);
+            loadedSize += count;
+            String percent = String.format("%.1f%%", loadedSize * 100.0 / fileSize);
+            jsonObject.put("percent", percent);
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, jsonObject);
+            pluginResult.setKeepCallback(true);
+            callbackContext.sendPluginResult(pluginResult);
+            // System.out.printf("Download Rate: %.1f%%\n", loadedSize * 100.0 / fileSize);
+          }
+          inputStream.close();
+          outputStream.close();
+    
+          jsonObject.put("status", "finished");
+          callbackContext.success(jsonObject);
+        } catch (Exception e) {
+          callbackContext.error("Exception: " + e.getMessage());
         }
-      });
-		} catch (Exception e) {
-			callbackContext.error("Exception: " + e.getMessage());
-		}
+      }
+    });
   }
 }
