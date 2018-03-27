@@ -33,6 +33,10 @@ public class Cifs extends CordovaPlugin {
       String url = args.getString(0);
       this.dir(url, callbackContext);
       return true;
+    } else if(action.equals("getfiles")) {
+      String url = args.getString(0);
+      this.getfiles(url, callbackContext);
+      return true;
     } else if(action.equals("download")) {
       String url = args.getString(0);
       this.download(url, callbackContext);
@@ -83,6 +87,53 @@ public class Cifs extends CordovaPlugin {
         } catch (Exception e) {
           callbackContext.error("Exception: " + e.getMessage());
         }
+      }
+    });
+  }
+
+  /**
+   * get all files include subfolder (JSONArray)
+   */
+  private void getfiles(final String url, final CallbackContext callbackContext) {
+    cordova.getThreadPool().execute(new Runnable() {
+      public void run() {
+        try {
+          SmbFile smbFile = new SmbFile(url);
+          if (smbFile.isFile()) {
+            callbackContext.error("Only Directory can be processed.");
+            return;
+          }
+          iterator(smbFile, callbackContext);
+          JSONObject resp = new JSONObject();
+          resp.put("status", "finished");
+          callbackContext.success(resp);
+        } catch (Exception e) {
+          callbackContext.error("Exception: " + e.getMessage());
+        }
+      }
+
+      private void iterator(SmbFile smbFile, CallbackContext callbackContext) throws Exception {
+        JSONObject resp = new JSONObject();
+        resp.put("status", "processing");
+        JSONArray jsonfiles = new JSONArray();
+        SmbFile[] files = smbFile.listFiles();
+        for (SmbFile file : files) {
+          if (file.isDirectory() && !file.getName().endsWith("$/")) {
+            iterator(file, callbackContext);
+          }
+          if (file.isFile()) {
+            JSONObject jsonObject = new JSONObject();
+            jsonObject.put("name", file.getName());
+            jsonObject.put("length", file.length());
+            jsonObject.put("url", file.getCanonicalPath());
+            jsonObject.put("directory", file.isDirectory());
+            jsonfiles.put(jsonObject);
+          }
+        }
+        resp.put("files", jsonfiles);
+        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, resp);
+        pluginResult.setKeepCallback(true);
+        callbackContext.sendPluginResult(pluginResult);
       }
     });
   }
