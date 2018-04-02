@@ -10,10 +10,15 @@ import org.json.JSONObject;
 
 import jcifs.smb.SmbFile;
 import jcifs.smb.SmbFileInputStream;
+import jcifs.netbios.NbtAddress;
 
 import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.io.File;
 import java.io.FileOutputStream;
+import java.net.InetAddress;
+import java.net.MalformedURLException;
 import java.io.BufferedInputStream;
 
 /**
@@ -22,6 +27,18 @@ import java.io.BufferedInputStream;
 public class Cifs extends CordovaPlugin {
   
   private static final int MAX_LENGTH = 1024 * 50;
+
+  private static final String IPADDRESS_PATTERN = "^([01]?\\d\\d?|2[0-4]\\d|25[0-5])\\."
+    + "([01]?\\d\\d?|2[0-4]\\d|25[0-5])\\."
+    + "([01]?\\d\\d?|2[0-4]\\d|25[0-5])\\."
+    + "([01]?\\d\\d?|2[0-4]\\d|25[0-5])$";
+
+  private Pattern pattern;
+
+  public Cifs() {
+    super();
+    pattern = Pattern.compile(IPADDRESS_PATTERN);
+  }
 
   @Override
   public boolean execute(String action, JSONArray args, CallbackContext callbackContext) throws JSONException {
@@ -45,6 +62,25 @@ public class Cifs extends CordovaPlugin {
     return false;
   }
 
+  private String resolveHostname(String url) throws Exception {
+    int atIdx = url.indexOf("@");
+    String name = null;
+    if (atIdx > -1) {
+      name = url.substring(atIdx + 1, url.indexOf("/", atIdx));
+    } else {
+      int doubleSlashIdx = url.indexOf("//");
+      if (doubleSlashIdx == -1) throw new MalformedURLException("url is invalid");
+      name = url.substring(doubleSlashIdx + 2, url.indexOf("/", doubleSlashIdx + 2));
+    }
+    Matcher matcher = pattern.matcher(name);
+    if (matcher.matches()) { // IP address
+      return url;
+    }
+    // hostname
+    InetAddress addr = NbtAddress.getByName(name).getInetAddress();
+    return url.replace(name, addr.getHostAddress());
+  }
+
   /**
    * exist (true or false) 
    */
@@ -52,6 +88,7 @@ public class Cifs extends CordovaPlugin {
     cordova.getThreadPool().execute(new Runnable() {
       public void run() {
         try {
+          url = resolveHostname(url);
           SmbFile smbFile = new SmbFile(url);
           callbackContext.success(Boolean.toString(smbFile.exists()));
         } catch (Exception e) {
@@ -68,6 +105,7 @@ public class Cifs extends CordovaPlugin {
     cordova.getThreadPool().execute(new Runnable() {
       public void run() {
         try {
+          url = resolveHostname(url);
           SmbFile smbFile = new SmbFile(url);
           if (smbFile.isFile()) {
             callbackContext.error("Only Directory can be processed.");
@@ -98,6 +136,7 @@ public class Cifs extends CordovaPlugin {
     cordova.getThreadPool().execute(new Runnable() {
       public void run() {
         try {
+          url = resolveHostname(url);
           SmbFile smbFile = new SmbFile(url);
           if (smbFile.isFile()) {
             callbackContext.error("Only Directory can be processed.");
@@ -145,6 +184,7 @@ public class Cifs extends CordovaPlugin {
     cordova.getThreadPool().execute(new Runnable() {
       public void run() {
         try {
+          url = resolveHostname(url);
           final SmbFile smbFile = new SmbFile(url);
           if(!smbFile.exists()) {
             callbackContext.error("File not existed.");
